@@ -28,18 +28,51 @@ function runPlaywright(specPath, headed = true, res) {
   const forceHeadless = !!isRailway;
   const actualHeaded = forceHeadless ? false : headed;
   const npxCmd = isWindows ? 'npx.cmd' : 'npx';
-  const headFlag = actualHeaded ? '--headed' : '';
-  const runCommand = `${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
   
-  console.log(`Running Playwright test: ${specPath}, Headed: ${actualHeaded}, Railway: ${!!isRailway}`);
+  // Build command with explicit headed flag
+  const cmdParts = [
+    npxCmd,
+    'playwright',
+    'test',
+    specPath,
+    '--project=chromium',
+    '--reporter=line'
+  ];
+  
+  if (actualHeaded) {
+    cmdParts.push('--headed');
+  }
+  
+  const runCommand = cmdParts.join(' ');
+  
+  console.log(`Running Playwright test: ${specPath}`);
+  console.log(`Headed mode: ${actualHeaded} (requested: ${headed}, Railway: ${!!isRailway})`);
+  console.log(`Command: ${runCommand}`);
+
+  // Prepare environment variables - explicitly unset CI for headed mode
+  const envVars = { ...process.env };
+  if (actualHeaded) {
+    // For headed mode: explicitly remove CI and set HEADLESS=0
+    delete envVars.CI;
+    envVars.HEADLESS = '0';
+    envVars.PWDEBUG = '0'; // Disable Playwright debug mode
+    // Ensure we're not in CI mode
+    envVars.CI = undefined;
+    // Windows specific: ensure GUI is available
+    if (isWindows) {
+      envVars.DISPLAY = undefined;
+    }
+  } else {
+    // For headless mode: set CI and HEADLESS=1
+    envVars.CI = '1';
+    envVars.HEADLESS = '1';
+  }
+  
+  console.log(`Environment - CI: ${envVars.CI}, HEADLESS: ${envVars.HEADLESS}, Headed: ${actualHeaded}`);
 
   const child = spawn(runCommand, {
     cwd: projectRoot,
-    env: {
-      ...process.env,
-      HEADLESS: actualHeaded ? '0' : '1',
-      CI: actualHeaded ? '0' : '1', // disable CI mode for headed so browser opens
-    },
+    env: envVars,
     shell: true,
   });
 
