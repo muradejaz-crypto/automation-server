@@ -22,13 +22,16 @@ function runPlaywright(specPath, headed = true, res) {
 
   const projectRoot = __dirname;
   const isWindows = process.platform === 'win32';
-  const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME;
-  // Force headless on Railway or if DISPLAY is not available
-  const forceHeadless = isRailway || !process.env.DISPLAY;
+  const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_ENVIRONMENT_ID;
+  // Only force headless on Railway (server environment), not locally
+  // On Windows, DISPLAY won't exist but that's fine - we can still run headed
+  const forceHeadless = !!isRailway;
   const actualHeaded = forceHeadless ? false : headed;
   const npxCmd = isWindows ? 'npx.cmd' : 'npx';
   const headFlag = actualHeaded ? '--headed' : '';
   const runCommand = `${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
+  
+  console.log(`Running Playwright test: ${specPath}, Headed: ${actualHeaded}, Railway: ${!!isRailway}`);
 
   const child = spawn(runCommand, {
     cwd: projectRoot,
@@ -120,6 +123,7 @@ function buildHandler(defaultSpec) {
       req.body && typeof req.body.spec === 'string' && req.body.spec.trim()
         ? req.body.spec.trim()
         : defaultSpec;
+    console.log(`Request received - Spec: ${spec}, Headed requested: ${headed}`);
     return runPlaywright(spec, headed, res);
   };
 }
