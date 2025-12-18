@@ -1,0 +1,23 @@
+{
+  "name": "fastlearner-automation",
+  "version": "1.0.0",
+  "description": "FastLearner Playwright automation server and tests",
+  "main": "server.js",
+  "scripts": {
+    "automation-server": "node server.js",
+    "run-test-creation": "npx playwright test tests/instructor/createTest.spec.js --project=chromium --reporter=line",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^24.10.1"
+  }
+}
