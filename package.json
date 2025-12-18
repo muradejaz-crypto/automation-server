@@ -6,18 +6,19 @@
   "scripts": {
     "automation-server": "node server.js",
     "run-test-creation": "npx playwright test tests/instructor/createTest.spec.js --project=chromium --reporter=line",
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "npx playwright install chromium --with-deps || true"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@playwright/test": "^1.57.0",
     "cors": "^2.8.5",
     "express": "^4.21.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
     "@types/node": "^24.10.1"
   }
 }

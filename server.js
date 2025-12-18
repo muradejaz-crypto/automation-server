@@ -22,16 +22,20 @@ function runPlaywright(specPath, headed = true, res) {
 
   const projectRoot = __dirname;
   const isWindows = process.platform === 'win32';
+  const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME;
+  // Force headless on Railway or if DISPLAY is not available
+  const forceHeadless = isRailway || !process.env.DISPLAY;
+  const actualHeaded = forceHeadless ? false : headed;
   const npxCmd = isWindows ? 'npx.cmd' : 'npx';
-  const headFlag = headed ? '--headed' : '';
+  const headFlag = actualHeaded ? '--headed' : '';
   const runCommand = `${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
 
   const child = spawn(runCommand, {
     cwd: projectRoot,
     env: {
       ...process.env,
-      HEADLESS: headed ? '0' : process.env.HEADLESS || '1',
-      CI: headed ? '0' : process.env.CI || '1', // disable CI mode for headed so browser opens
+      HEADLESS: actualHeaded ? '0' : '1',
+      CI: actualHeaded ? '0' : '1', // disable CI mode for headed so browser opens
     },
     shell: true,
   });
