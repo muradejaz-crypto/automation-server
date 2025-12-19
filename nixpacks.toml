@@ -1,0 +1,14 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "npm", "xorg.xvfb"]
+
+[phases.install]
+cmds = [
+  "npm install",
+  "npx playwright install chromium --with-deps"
+]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "npm start"

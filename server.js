@@ -26,19 +26,36 @@ function runPlaywright(specPath, headed = true, res) {
   const isLinux = process.platform === 'linux';
   const hasDisplay = !!process.env.DISPLAY;
   
-  // Force headless on Railway or Linux without DISPLAY (no X server)
-  // Only allow headed mode on Windows or Linux with DISPLAY
-  const canRunHeaded = isWindows || (isLinux && hasDisplay);
-  const actualHeaded = canRunHeaded && headed && !isRailway;
+  // On Railway: use xvfb-run to simulate display for headed mode
+  // On Windows: direct headed mode
+  // On Linux with DISPLAY: direct headed mode
+  // Otherwise: headless
+  const useXvfb = isRailway && headed && isLinux;
+  const actualHeaded = isWindows ? (headed && !isRailway) : (headed && (hasDisplay || isRailway));
   
   const npxCmd = isWindows ? 'npx.cmd' : 'npx';
   const headFlag = actualHeaded ? '--headed' : '';
-  const runCommand = `${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
+  
+  // Build command - use xvfb-run on Railway for headed mode
+  // xvfb-run creates a virtual X server so Playwright can run in headed mode
+  let runCommand;
+  if (useXvfb) {
+    // Use xvfb-run to create virtual display on Railway
+    // -a flag auto-assigns display number
+    runCommand = `xvfb-run -a --server-args="-screen 0 1920x1080x24" ${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
+    console.log('Using xvfb-run for virtual display on Railway');
+  } else {
+    runCommand = `${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
+  }
 
-  console.log(`Running test: ${specPath}`);
-  console.log(`Headed requested: ${headed}, Actual headed: ${actualHeaded}`);
+  console.log(`\n=== Starting Playwright Test ===`);
+  console.log(`Test: ${specPath}`);
+  console.log(`Headed requested: ${headed}`);
+  console.log(`Actual headed mode: ${actualHeaded}`);
+  console.log(`Using xvfb: ${useXvfb}`);
   console.log(`Environment: Windows=${isWindows}, Railway=${isRailway}, Linux=${isLinux}, HasDisplay=${hasDisplay}`);
   console.log(`Command: ${runCommand}`);
+  console.log(`================================\n`);
 
   // Prepare environment - remove CI completely for headed mode
   const env = { ...process.env };
@@ -90,6 +107,12 @@ function runPlaywright(specPath, headed = true, res) {
   };
 
   child.on('error', (error) => {
+    // If xvfb-run command not found, it means xvfb is not installed
+    // This is handled by the error, but we log it for debugging
+    if (useXvfb && error.message.includes('xvfb-run')) {
+      console.error('xvfb-run not found. xvfb may not be installed on Railway.');
+      console.error('Consider installing xvfb via nixpacks.toml or using headless mode.');
+    }
     finish(500, {
       success: false,
       message: 'Failed to start Playwright test run',
