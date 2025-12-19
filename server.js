@@ -22,10 +22,15 @@ function runPlaywright(specPath, headed = true, res) {
 
   const projectRoot = __dirname;
   const isWindows = process.platform === 'win32';
-  const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_ENVIRONMENT_ID;
-  // Only force headless on Railway (server environment), not locally
-  // On Windows, DISPLAY won't exist but that's fine - we can still run headed
-  const forceHeadless = !!isRailway;
+  // Check if running on Railway (cloud environment)
+  const isRailway = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_ENVIRONMENT_ID);
+  // Check if running in Docker/container (common indicators)
+  const isContainer = process.env.PWD === '/app' || __dirname.includes('/app') || process.env.HOME === '/root';
+  
+  // Only force headless on Railway/container, not on local Windows
+  // Allow override via FORCE_HEADED environment variable
+  const forceHeaded = process.env.FORCE_HEADED === 'true';
+  const forceHeadless = (isRailway || isContainer) && !forceHeaded && !isWindows;
   const actualHeaded = forceHeadless ? false : headed;
   const npxCmd = isWindows ? 'npx.cmd' : 'npx';
   
@@ -52,23 +57,18 @@ function runPlaywright(specPath, headed = true, res) {
   // Prepare environment variables - explicitly unset CI for headed mode
   const envVars = { ...process.env };
   if (actualHeaded) {
-    // For headed mode: explicitly remove CI and set HEADLESS=0
+    // For headed mode: remove CI completely and set HEADLESS=0
     delete envVars.CI;
     envVars.HEADLESS = '0';
-    envVars.PWDEBUG = '0'; // Disable Playwright debug mode
-    // Ensure we're not in CI mode
-    envVars.CI = undefined;
-    // Windows specific: ensure GUI is available
-    if (isWindows) {
-      envVars.DISPLAY = undefined;
-    }
+    envVars.PWDEBUG = '0';
+    // Don't set CI to undefined, just delete it
   } else {
     // For headless mode: set CI and HEADLESS=1
     envVars.CI = '1';
     envVars.HEADLESS = '1';
   }
   
-  console.log(`Environment - CI: ${envVars.CI}, HEADLESS: ${envVars.HEADLESS}, Headed: ${actualHeaded}`);
+  console.log(`Environment - CI: ${envVars.CI || 'not set'}, HEADLESS: ${envVars.HEADLESS}, Headed: ${actualHeaded}, Windows: ${isWindows}, Railway: ${isRailway}`);
 
   const child = spawn(runCommand, {
     cwd: projectRoot,
