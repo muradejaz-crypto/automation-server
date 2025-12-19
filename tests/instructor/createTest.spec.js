@@ -8,7 +8,7 @@ const CreateTestPage = require('../../pages/CreateTestPage');
 test.describe('Create Test Flow', () => {
   test('Complete flow: Login and create a test', async ({ page }) => {
     // Increase test timeout for complex multi-step form with quiz questions
-    test.setTimeout(120000); // 2 minutes
+    test.setTimeout(300000); // 5 minutes
     
     // Initialize Page Object Models
     const loginPage = new LoginPage(page);

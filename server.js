@@ -26,13 +26,23 @@ function runPlaywright(specPath, headed = true, res) {
   const headFlag = headed ? '--headed' : '';
   const runCommand = `${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
 
+  console.log(`Running test: ${specPath}, Headed: ${headed}, Command: ${runCommand}`);
+
+  // Prepare environment - remove CI completely for headed mode
+  const env = { ...process.env };
+  if (headed) {
+    // For headed mode: completely remove CI and set HEADLESS=0
+    delete env.CI;
+    env.HEADLESS = '0';
+  } else {
+    // For headless mode: set CI and HEADLESS=1
+    env.CI = '1';
+    env.HEADLESS = '1';
+  }
+
   const child = spawn(runCommand, {
     cwd: projectRoot,
-    env: {
-      ...process.env,
-      HEADLESS: headed ? '0' : '1',
-      CI: headed ? '0' : '1', // disable CI mode for headed so browser opens
-    },
+    env: env,
     shell: true,
   });
 
@@ -81,16 +91,36 @@ function runPlaywright(specPath, headed = true, res) {
     const timedOut = signal === 'SIGTERM';
     const success = !timedOut && code === 0;
 
+    // Extract error message from stderr if available
+    let errorMessage = `Playwright test failed with exit code ${code}`;
+    if (stderr) {
+      const stderrLines = stderr.trim().split('\n');
+      // Try to find the actual error message
+      const errorLine = stderrLines.find(line => 
+        line.includes('Error:') || 
+        line.includes('failed') || 
+        line.includes('timeout') ||
+        line.includes('Timeout')
+      );
+      if (errorLine) {
+        errorMessage = errorLine;
+      } else if (stderrLines.length > 0) {
+        // Use last few lines of stderr as error message
+        errorMessage = stderrLines.slice(-3).join(' ');
+      }
+    }
+
     finish(success ? 200 : 500, {
       success,
       message: timedOut
         ? 'Playwright test timed out and was stopped'
         : success
           ? 'Playwright test completed successfully'
-          : `Playwright test failed with exit code ${code}`,
+          : errorMessage,
       output: stdout.trim() || null,
       errors: stderr.trim() || null,
       timedOut,
+      exitCode: code,
     });
   });
 }
@@ -116,7 +146,11 @@ function buildHandler(defaultSpec) {
       req.body && typeof req.body.spec === 'string' && req.body.spec.trim()
         ? req.body.spec.trim()
         : defaultSpec;
-    console.log(`Request received - Spec: ${spec}, Headed requested: ${headed}`);
+    console.log(`\n=== Automation Request ===`);
+    console.log(`Spec: ${spec}`);
+    console.log(`Headed requested: ${headed}`);
+    console.log(`Request body:`, JSON.stringify(req.body));
+    console.log(`========================\n`);
     return runPlaywright(spec, headed, res);
   };
 }
