@@ -22,15 +22,27 @@ function runPlaywright(specPath, headed = true, res) {
 
   const projectRoot = __dirname;
   const isWindows = process.platform === 'win32';
+  const isRailway = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_ENVIRONMENT_ID);
+  const isLinux = process.platform === 'linux';
+  const hasDisplay = !!process.env.DISPLAY;
+  
+  // Force headless on Railway or Linux without DISPLAY (no X server)
+  // Only allow headed mode on Windows or Linux with DISPLAY
+  const canRunHeaded = isWindows || (isLinux && hasDisplay);
+  const actualHeaded = canRunHeaded && headed && !isRailway;
+  
   const npxCmd = isWindows ? 'npx.cmd' : 'npx';
-  const headFlag = headed ? '--headed' : '';
+  const headFlag = actualHeaded ? '--headed' : '';
   const runCommand = `${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
 
-  console.log(`Running test: ${specPath}, Headed: ${headed}, Command: ${runCommand}`);
+  console.log(`Running test: ${specPath}`);
+  console.log(`Headed requested: ${headed}, Actual headed: ${actualHeaded}`);
+  console.log(`Environment: Windows=${isWindows}, Railway=${isRailway}, Linux=${isLinux}, HasDisplay=${hasDisplay}`);
+  console.log(`Command: ${runCommand}`);
 
   // Prepare environment - remove CI completely for headed mode
   const env = { ...process.env };
-  if (headed) {
+  if (actualHeaded) {
     // For headed mode: completely remove CI and set HEADLESS=0
     delete env.CI;
     env.HEADLESS = '0';
@@ -94,19 +106,26 @@ function runPlaywright(specPath, headed = true, res) {
     // Extract error message from stderr if available
     let errorMessage = `Playwright test failed with exit code ${code}`;
     if (stderr) {
-      const stderrLines = stderr.trim().split('\n');
-      // Try to find the actual error message
-      const errorLine = stderrLines.find(line => 
-        line.includes('Error:') || 
-        line.includes('failed') || 
-        line.includes('timeout') ||
-        line.includes('Timeout')
-      );
-      if (errorLine) {
-        errorMessage = errorLine;
-      } else if (stderrLines.length > 0) {
-        // Use last few lines of stderr as error message
-        errorMessage = stderrLines.slice(-3).join(' ');
+      const stderrText = stderr.trim();
+      const stderrLines = stderrText.split('\n');
+      
+      // Check for X server / display errors
+      if (stderrText.includes('Missing X server') || stderrText.includes('XServer running') || stderrText.includes('$DISPLAY')) {
+        errorMessage = 'Browser cannot open in headed mode (no display server). Running in headless mode automatically.';
+      } else {
+        // Try to find the actual error message
+        const errorLine = stderrLines.find(line => 
+          line.includes('Error:') || 
+          line.includes('failed') || 
+          line.includes('timeout') ||
+          line.includes('Timeout')
+        );
+        if (errorLine) {
+          errorMessage = errorLine;
+        } else if (stderrLines.length > 0) {
+          // Use last few lines of stderr as error message
+          errorMessage = stderrLines.slice(-3).join(' ');
+        }
       }
     }
 
