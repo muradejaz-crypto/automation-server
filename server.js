@@ -22,57 +22,17 @@ function runPlaywright(specPath, headed = true, res) {
 
   const projectRoot = __dirname;
   const isWindows = process.platform === 'win32';
-  // Check if running on Railway (cloud environment)
-  const isRailway = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_ENVIRONMENT_ID);
-  // Check if running in Docker/container (common indicators)
-  const isContainer = process.env.PWD === '/app' || __dirname.includes('/app') || process.env.HOME === '/root';
-  
-  // Only force headless on Railway/container, not on local Windows
-  // Allow override via FORCE_HEADED environment variable
-  const forceHeaded = process.env.FORCE_HEADED === 'true';
-  const forceHeadless = (isRailway || isContainer) && !forceHeaded && !isWindows;
-  const actualHeaded = forceHeadless ? false : headed;
   const npxCmd = isWindows ? 'npx.cmd' : 'npx';
-  
-  // Build command with explicit headed flag
-  const cmdParts = [
-    npxCmd,
-    'playwright',
-    'test',
-    specPath,
-    '--project=chromium',
-    '--reporter=line'
-  ];
-  
-  if (actualHeaded) {
-    cmdParts.push('--headed');
-  }
-  
-  const runCommand = cmdParts.join(' ');
-  
-  console.log(`Running Playwright test: ${specPath}`);
-  console.log(`Headed mode: ${actualHeaded} (requested: ${headed}, Railway: ${!!isRailway})`);
-  console.log(`Command: ${runCommand}`);
-
-  // Prepare environment variables - explicitly unset CI for headed mode
-  const envVars = { ...process.env };
-  if (actualHeaded) {
-    // For headed mode: remove CI completely and set HEADLESS=0
-    delete envVars.CI;
-    envVars.HEADLESS = '0';
-    envVars.PWDEBUG = '0';
-    // Don't set CI to undefined, just delete it
-  } else {
-    // For headless mode: set CI and HEADLESS=1
-    envVars.CI = '1';
-    envVars.HEADLESS = '1';
-  }
-  
-  console.log(`Environment - CI: ${envVars.CI || 'not set'}, HEADLESS: ${envVars.HEADLESS}, Headed: ${actualHeaded}, Windows: ${isWindows}, Railway: ${isRailway}`);
+  const headFlag = headed ? '--headed' : '';
+  const runCommand = `${npxCmd} playwright test ${specPath} --project=chromium --reporter=line ${headFlag}`.trim();
 
   const child = spawn(runCommand, {
     cwd: projectRoot,
-    env: envVars,
+    env: {
+      ...process.env,
+      HEADLESS: headed ? '0' : '1',
+      CI: headed ? '0' : '1', // disable CI mode for headed so browser opens
+    },
     shell: true,
   });
 
